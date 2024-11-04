@@ -1,0 +1,73 @@
+# Importing necessary libraries
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import time
+import datetime
+
+# Function to scrape job listings from a specified URL
+def scrape_job_listings(base_url, num_pages):
+    all_jobs = []  # List to hold all job listings
+
+    for page in range(1, num_pages + 1):
+        print(f"Scraping page {page}...")
+        
+        # Construct the URL for the current page
+        url = f"{base_url}?page={page}"
+        
+        # Send a GET request to the website
+        response = requests.get(url)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            print(f"Successfully fetched page {page}.")
+        else:
+            print(f"Failed to retrieve page {page}. Status code: {response.status_code}")
+            continue  # Skip to the next page
+        
+        # Parse the HTML content using Beautiful Soup
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Find job listings on the page
+        jobs = soup.find_all('div', class_='job-listing')
+
+        # Loop through each job and extract the desired information
+        for job in jobs:
+            title = job.find('h2', class_='job-title').text.strip() if job.find('h2', class_='job-title') else "No Title"
+            company = job.find('div', class_='company').text.strip() if job.find('div', class_='company') else "No Company"
+            location = job.find('div', class_='location').text.strip() if job.find('div', class_='location') else "No Location"
+            summary = job.find('p', class_='summary').text.strip() if job.find('p', class_='summary') else "No Summary"
+            date_posted = job.find('time')['datetime'] if job.find('time') else datetime.datetime.now().strftime("%Y-%m-%d")  # Use today's date if not available
+            
+            # Append extracted job data to the list
+            all_jobs.append({
+                'title': title,
+                'company': company,
+                'location': location,
+                'summary': summary,
+                'date_posted': date_posted
+            })
+        
+        # Delay between requests to avoid overwhelming the server
+        time.sleep(2)
+
+    # Create a DataFrame from the list
+    df = pd.DataFrame(all_jobs)
+    
+    return df
+
+# Base URL of the job listing website (example)
+base_job_url = "https://www.example-job-website.com/jobs"
+# Specify the number of pages to scrape
+number_of_pages = 5
+# Call the scraping function
+job_listings_df = scrape_job_listings(base_job_url, number_of_pages)
+
+# Save the scraped data to a CSV file
+if not job_listings_df.empty:
+    job_listings_df.to_csv('scraped_job_listings.csv', index=False)
+    print("Scraped data saved to 'scraped_job_listings.csv'")
+
+# Optionally, save to Excel format
+job_listings_df.to_excel('scraped_job_listings.xlsx', index=False)
+print("Scraped data saved to 'scraped_job_listings.xlsx'")
