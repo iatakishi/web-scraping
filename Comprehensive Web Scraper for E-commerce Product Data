@@ -1,0 +1,94 @@
+# Importing necessary libraries
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import time
+import datetime
+import matplotlib.pyplot as plt
+
+# Function to scrape product data from an e-commerce site
+def scrape_product_data(base_url, num_pages):
+    all_products = []  # List to hold all product data
+
+    for page in range(1, num_pages + 1):
+        print(f"Scraping page {page}...")
+        
+        # Construct the URL for the current page
+        url = f"{base_url}?page={page}"
+        
+        # Send a GET request to the website
+        response = requests.get(url)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            print(f"Successfully fetched page {page}.")
+        else:
+            print(f"Failed to retrieve page {page}. Status code: {response.status_code}")
+            continue  # Skip to the next page
+        
+        # Parse the HTML content using Beautiful Soup
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Find product listings on the page
+        products = soup.find_all('div', class_='product-item')
+
+        # Loop through each product and extract the desired information
+        for product in products:
+            title = product.find('h2', class_='product-title').text.strip() if product.find('h2', class_='product-title') else "No Title"
+            price = product.find('span', class_='product-price').text.strip() if product.find('span', class_='product-price') else "No Price"
+            rating = product.find('span', class_='product-rating').text.strip() if product.find('span', class_='product-rating') else "No Rating"
+            reviews = product.find('span', class_='product-reviews').text.strip() if product.find('span', class_='product-reviews') else "No Reviews"
+            date_scraped = datetime.datetime.now().strftime("%Y-%m-%d")
+            
+            # Append extracted product data to the list
+            all_products.append({
+                'title': title,
+                'price': price,
+                'rating': rating,
+                'reviews': reviews,
+                'date_scraped': date_scraped
+            })
+        
+        # Delay between requests to avoid overwhelming the server
+        time.sleep(2)
+
+    # Create a DataFrame from the list
+    df = pd.DataFrame(all_products)
+    
+    # Data Cleaning: Remove unnecessary characters and convert types
+    df['price'] = df['price'].replace('[\$,]', '', regex=True).astype(float)
+    df['rating'] = df['rating'].str.extract('(\d+\.\d+)').astype(float)  # Extract numeric rating
+    df['reviews'] = df['reviews'].replace('[^0-9]', '', regex=True).astype(int)  # Extract number of reviews
+    
+    return df
+
+# Visualization function to show price distribution
+def visualize_price_distribution(df):
+    plt.figure(figsize=(10, 6))
+    plt.hist(df['price'], bins=30, color='blue', alpha=0.7)
+    plt.title('Price Distribution of Products')
+    plt.xlabel('Price ($)')
+    plt.ylabel('Number of Products')
+    plt.grid(True)
+    plt.savefig('price_distribution.png')  # Save the figure
+    plt.show()
+
+# Base URL of the e-commerce website (example)
+base_product_url = "https://www.example-ecommerce-site.com/products"
+# Specify the number of pages to scrape
+number_of_pages = 5
+
+# Call the scraping function
+product_data_df = scrape_product_data(base_product_url, number_of_pages)
+
+# Save the scraped data to a CSV file
+if not product_data_df.empty:
+    product_data_df.to_csv('scraped_product_data.csv', index=False)
+    print("Scraped data saved to 'scraped_product_data.csv'")
+
+# Optionally, save to Excel format
+product_data_df.to_excel('scraped_product_data.xlsx', index=False)
+print("Scraped data saved to 'scraped_product_data.xlsx'")
+
+# Visualize the price distribution
+visualize_price_distribution(product_data_df)
